@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>CS 430</title>
+	</head>
+	<body>
+
+		<h1>CS 430: Jugs</h1>
+		<h2>Vinesh Kannan</h2>
+
+		<input id="jug-input" type="text" value="8,5,3">
+		<input id="t-input" type="text" value="4">
+		<button id="run">Run</button>
+		<p>Open brownser console to see solution.</p>
+
+		<script type="text/javascript">
+
+			var copy = (obj) => {
+				return JSON.parse(JSON.stringify(obj));
+			}
+
+			var Jug = (config) => {
+				if(!config.id){
+					throw Error('Fatal Error: no jug id given.');
+				}
+				return {
+					id: config.id,
+					current: config.current || 0,
+					total: config.total || 0
+				}	
+			};
+
+			var remaining = (jug) => {
+				return jug.total - jug.current;
+			}
+
+			var moveToString = (move) => {
+				return move.type + ' ' + move.giving.id + ' into ' + move.receiving.id;
+			}
+
+			var Move = (config) => {
+				var g = config.giving;
+				var r = config.receiving;
+				var type = remaining(r) >= g.current ? 'EMPTY' : 'FILL';
+				if(type === 'EMPTY'){
+					r.current += g.current;
+					g.current = 0;
+				}
+				else if(type === 'FILL'){
+					g.current -= remaining(r);
+					r.current = r.total;
+				}
+				var done = g.current === config.target || r.current === config.target;
+				var jugs = copy(config.prior.jugs);
+					jugs[r.id] = r;
+					jugs[g.id] = g;
+				return {
+					jugs: jugs,
+					type: type,
+					prior: config.prior,
+					done: done,
+					giving: g,
+					receiving: r
+				}
+			}
+
+			var evaluateNextMoves = (states, t) => {
+				var solution = {};
+				var counter = 1;
+				var nextMoves = {};
+				for(var m in states){
+					var priorMove = states[m];
+					if(priorMove){
+						var jugs = priorMove.jugs;
+						var givers = {};
+						var receivers = {};
+						for(var j in jugs){
+							var jug = jugs[j];
+							if(jug.current > 0){
+								givers[jug.id] = jug;
+							}
+							if(remaining(jug) > 0){
+								receivers[jug.id] = jug;
+							}
+						}
+						for(var g in givers){
+							for(var r in receivers){
+								var giving = givers[g];
+								var receiving = receivers[r];
+								if(giving.id !== receiving.id){
+									var nextMove = Move({
+										giving: copy(giving),
+										receiving: copy(receiving),
+										prior: copy(priorMove),
+										target: t
+									});
+									if(nextMove.done){
+										solution = nextMove;
+										break;
+									}
+									else{
+										nextMoves[counter] = nextMove;
+										counter++;
+									}
+								}
+							}
+							if(solution.done){
+								break;
+							}
+						}
+						if(solution.done){
+							break;
+						}
+					}
+				}
+				return {
+					states: nextMoves,
+					solution: solution
+				};
+			}
+
+			var main = (jugVolumes, target) => {
+
+				var t = target;
+				var initialJugs = {};
+				var jugCounter = 1;
+				for(var i = 0; i < jugVolumes.length; i++){
+					var vol = jugVolumes[i];
+					initialJugs[jugCounter] = Jug({
+						id: jugCounter,
+						total: vol,
+						current: (i === 0) ? vol : 0
+					});
+					jugCounter++;
+				}
+
+				if(t > initialJugs[1].current){
+					throw Error('Impossible.');
+				}
+
+				/*var t = 2;
+				var initialJugs = {
+					1: Jug({id: 1, total: 5, current: 5}),
+					2: Jug({id: 2, total: 4}),
+					3: Jug({id: 3, total: 3})
+				}*/
+
+				var initial = {
+					jugs: initialJugs,
+					type: 'START',
+					prior: false,
+					done: false,
+					giving: false,
+					receiving: false
+				}
+
+				var initialStates = {
+					1: initial
+				}
+
+				var res = {
+					states: initialStates,
+					solution: {}
+				};
+				var depth = 0;
+				var uniqueStates = [];
+				var uniqueCounter = 1;
+				while(!res.solution.done){
+					if(Object.keys(res.states).length < 1){
+						console.log('Out of possible moves.');
+						break;
+					}
+					else{
+						depth++;
+						nextSet = evaluateNextMoves(res.states, t);
+						res = nextSet;
+					}
+					if(res.solution.done){
+						console.log('Done!');
+						console.log('Solved at depth: ' + depth);
+						var instructions = [];
+						var node = res.solution;
+						while(node.prior){
+							instructions.push(node);
+							node = node.prior;
+						}
+						console.log('Steps to Solve:');
+						for(var q = instructions.length-1; q >=0; q--){
+							var instr = instructions[q];
+							console.log(moveToString(instr));
+						}
+						break;
+					}
+					// UNTESTED SECTION TO CHECK FOR REPEATED STATES
+					/*else{
+						for(var u in uniqueStates){
+							var unique = uniqueStates[u];
+							for(var s in res.states){
+								var newState = res.states[s];
+								if(newState){
+									if(repeatedState(unique, newState)){
+										res.states[s] = false;
+									}
+									else{
+										uniqueStates[uniqueCounter] = newState;
+										uniqueCounter++;
+									}
+								}
+							}
+						}
+					}*/
+					if(depth > 100000){
+						console.log('Exceeded maximum program depth.');
+						break;
+					}
+				}
+			}
+
+			var button = document.getElementById('run');
+			button.addEventListener('click', (e) => {
+				var jugInput = document.getElementById('jug-input').value;
+				var tInput = document.getElementById('t-input').value;
+				var jIn = JSON.parse('[' + jugInput + ']');
+				var tIn = parseInt(tInput, 10);
+				main(jIn, tIn);
+			});
+
+		</script>
+
+	</body>
+</html>
